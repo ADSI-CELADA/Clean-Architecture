@@ -1,21 +1,22 @@
-import { users } from "../data/data.js";
-import crypto from "crypto";
 import { getUsersCollection } from "../repository/user.repository.js";
+import { ObjectId } from "mongodb"
 
-export function createUser({ name, email }) {
+export async function createUser({ name, email }) {
   if (!name || !email) {
     throw new Error("Nombre y email son obligatorios");
   }
 
-  const user = {
-    id: crypto.randomUUID(),
-    name,
-    email
-  };
+  const user = { name, email };
 
-  users.push(user);
-  return user;
+  const collection = getUsersCollection();
+  const result = await collection.insertOne(user);
+
+  return {
+    id: result.insertedId,
+    ...user
+  };
 }
+
 
 export async function getAllUsers() {
   const collection = getUsersCollection();
@@ -23,27 +24,40 @@ export async function getAllUsers() {
   return users;
 };
 
-export function getUserById(id) {
-  const user = users.find(u => u.id == id);
+export async function getUserById(id) {
+  const collection = getUsersCollection();
+  const user = await collection.findOne({ _id: new ObjectId(id) })
   if (!user) throw new Error("Usuario no encontrado");
   return user;
 };
 
-export function updateUser(id, data) {
-  const user = getUserById(id);
+export async function updateUser(id, data) {
+  await getUserById(id);
 
-  if (!user) throw new Error("Usuario no encontrado");
+  const collection = getUsersCollection();
 
-  user.name = data.name ?? user.name;
-  user.email = data.email ?? user.email;
+  const updateData = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
 
-  return user;
-};
+  const updateUser = await collection.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    { $set: updateData },
+    { returnDocument: "after" }
+  );
 
-export function deleteUser(id) {
-  const index = users.findIndex(u => u.id == id);
-  if (index === -1) throw new Error("Usuario no encontrado");
-  return users.splice(index, 1)[0];
+  return updateUser.value;
+}
+
+export async function deleteUser(id) {
+  
+  await getUserById(id);
+
+  const collection = getUsersCollection();
+  const deleteUSer = await collection.findOneAndDelete({ _id : new ObjectId(id) })
+
+  return deleteUSer.value;
+
 }
 
 
